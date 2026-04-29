@@ -1,0 +1,23 @@
+[project]
+name = "futures-crawler"
+version = "0.1.0"
+description = "Config-driven API crawler framework"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+# Optional production deps (not required for the stdlib-only implementation).
+httpx = ["httpx"]
+pydantic = ["pydantic"]
+typer = ["typer"]
+yaml = ["PyYAML"]
+test = ["pytest", "respx"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+
+[project.scripts]
+futures-crawler = "futures_crawler.cli:main"
+

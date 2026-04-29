@@ -1,0 +1,91 @@
+# Example config for futures-crawler
+# You must update endpoints and fields according to your target API.
+
+auth:
+  type: none
+
+http:
+  user_agent: "futures-crawler/0.1.0"
+  timeout_seconds: 30
+  max_retries: 3
+  backoff_seconds: 0.5
+  min_interval_seconds: 0.0
+
+list_endpoint:
+  method: "GET"
+  url: "https://ftapi.10jqka.com.cn/futgwapi/api/market/v1/position/getNetPositionRank/"
+  headers:
+    Referer: "https://fupage.10jqka.com.cn/"
+  params_template:
+    contract: "P2609"
+    variety: "P"
+
+pagination:
+  strategy: "none"
+  start_page: 1
+  page_param: "page"
+  page_size_param: "page_size"
+  page_size: 20
+  records_path: "data.companyPositionList"
+  next_page_path: null
+
+detail:
+  enabled: true
+  method: "GET"
+  url: "https://ftapi.10jqka.com.cn/futgwapi/api/market/v1/position/getNetPositionBuildProcess/"
+  headers:
+    Referer: "https://fupage.10jqka.com.cn/"
+  params_template:
+  params_from_list:
+    contract: "contract"
+    company: "company"
+    variety: "variety"
+  detail_records_path: "data"
+
+fields:
+  - name: "交易日期"
+    source: "list"
+    path: "tradeDate"
+    default: ""
+  - name: "合约"
+    source: "list"
+    path: "contract"
+    default: ""
+  - name: "品种"
+    source: "list"
+    path: "variety"
+    default: ""
+  - name: "会员简称"
+    source: "list"
+    path: "company"
+    default: ""
+  - name: "多单持仓"
+    source: "list"
+    path: "f009n"
+    default: ""
+  - name: "多单增减"
+    source: "list"
+    path: "f013n"
+    default: ""
+  - name: "多单持仓均价"
+    source: "detail"
+    path: "latestPositionAvgPrice.longAvg"
+    default: ""
+  - name: "空单持仓"
+    source: "list"
+    path: "f015n"
+    default: ""
+  - name: "空单增减"
+    source: "list"
+    path: "f019n"
+    default: ""
+  - name: "空单持仓均价"
+    source: "detail"
+    path: "latestPositionAvgPrice.shortAvg"
+    default: ""
+
+output:
+  csv_path: "期货数据_{当前日期}.csv"
+  encoding: "utf-8"
+  newline: ""
+
