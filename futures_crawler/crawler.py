@@ -9,7 +9,7 @@ from .config import config_to_dict
 from .extract import extract_fields, get_by_path
 from .http_client import HttpClient
 from .models import CrawlerConfig
-from .storage import write_csv_overwrite
+from .storage import write_csv_overwrite, write_futures_split_rows
 
 
 logger = logging.getLogger("futures_crawler")
@@ -26,11 +26,11 @@ class CrawlerEngine:
         max_pages: Optional[int] = None,
         max_records: Optional[int] = None,
         workers: int = 8,
-    ) -> str:
+    ) -> str | tuple[str, str]:
         """
         Run full crawl for configured pagination.
 
-        Returns the output CSV path.
+        Returns the main CSV path, or (long_csv_path, short_csv_path) when output.split_only is True.
         """
         logger.info("Crawler start: %s", config_to_dict(self.cfg))
         page = int(self.cfg.pagination.start_page)
@@ -106,10 +106,13 @@ class CrawlerEngine:
             else:
                 raise ValueError(f"Unsupported pagination strategy: {self.cfg.pagination.strategy}")
 
+        fieldnames = [f.name for f in self.cfg.fields]
+        if self.cfg.output.split_only:
+            return write_futures_split_rows(output=self.cfg.output, rows=all_rows)
         return write_csv_overwrite(
             output=self.cfg.output,
             rows=all_rows,
-            fieldnames=[f.name for f in self.cfg.fields],
+            fieldnames=fieldnames,
         )
 
     def _fetch_list(self, *, page: int) -> dict[str, Any]:

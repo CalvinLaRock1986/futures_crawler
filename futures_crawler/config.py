@@ -118,6 +118,7 @@ def load_config(path: str) -> CrawlerConfig:
         csv_path=output_data.get("csv_path", "output.csv"),
         encoding=output_data.get("encoding", "utf-8"),
         newline=output_data.get("newline", ""),
+        split_only=bool(output_data.get("split_only", False)),
     )
 
     return CrawlerConfig(

@@ -63,3 +63,16 @@ Before wiring real APIs, you can run a fully offline end-to-end demo:
 
 See `config.yaml` for the required structure.
 
+## Split CSV (long vs short)
+
+When `output.split_only` is **false** (default in tests), the crawler writes one combined CSV and then also writes `{stem}_多单.csv` and `{stem}_空单.csv`.
+
+When `output.split_only` is **true** (see `config.yaml`), the crawler **does not** write the combined file — only:
+
+- `{stem}_多单.csv` — 交易日期, 合约, 品种, 会员简称, 多单持仓, 多单增减, 多单持仓均价
+- `{stem}_空单.csv` — 交易日期, 合约, 品种, 会员简称, 空单持仓, 空单增减, 空单持仓均价
+
+Example stem from `期货数据_{当前日期}.csv`: `期货数据_2026-04-30_多单.csv` and `期货数据_2026-04-30_空单.csv`.
+
+With Feishu env vars set, **`split_only: true` uploads both split files** to the chat (two messages).
+

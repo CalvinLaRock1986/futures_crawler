@@ -11,6 +11,7 @@ from typing import Optional
 from .config import load_config
 from .crawler import CrawlerEngine
 from .feishu_sender import send_file_to_chat
+from .storage import split_futures_report_csv
 from .models import (
     AuthConfig,
     CrawlerConfig,
@@ -54,13 +55,32 @@ def _run_and_optional_push(args: argparse.Namespace) -> str:
         cfg = replace(cfg, output=replace(cfg.output, csv_path=args.output))
     cfg = replace(cfg, output=replace(cfg.output, csv_path=_resolve_output_path(cfg.output.csv_path)))
     engine = CrawlerEngine(cfg)
-    out_path = engine.run(max_pages=args.max_pages, max_records=args.max_records, workers=args.workers)
+    run_result = engine.run(max_pages=args.max_pages, max_records=args.max_records, workers=args.workers)
+    log = logging.getLogger("futures_crawler")
+
+    if isinstance(run_result, tuple):
+        long_csv, short_csv = run_result
+        log.info("Wrote split CSVs only: long=%s short=%s", long_csv, short_csv)
+        push_paths = [long_csv, short_csv]
+        out_summary = f"{long_csv}\n{short_csv}"
+    else:
+        out_path = run_result
+        long_csv, short_csv = split_futures_report_csv(
+            out_path,
+            encoding=cfg.output.encoding,
+            newline=cfg.output.newline,
+        )
+        log.info("Split CSV: long=%s short=%s", long_csv, short_csv)
+        push_paths = [out_path]
+        out_summary = out_path
+
     app_id = args.feishu_app_id or os.environ.get("FEISHU_APP_ID")
     app_secret = args.feishu_app_secret or os.environ.get("FEISHU_APP_SECRET")
     chat_id = args.feishu_chat_id or os.environ.get("FEISHU_CHAT_ID")
     if app_id and app_secret and chat_id:
-        send_file_to_chat(app_id=app_id, app_secret=app_secret, chat_id=chat_id, file_path=out_path)
-    return out_path
+        for p in push_paths:
+            send_file_to_chat(app_id=app_id, app_secret=app_secret, chat_id=chat_id, file_path=p)
+    return out_summary
 
 
 def main(argv: Optional[list[str]] = None) -> None:

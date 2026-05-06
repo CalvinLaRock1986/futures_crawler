@@ -77,6 +77,8 @@ class OutputConfig:
     csv_path: str
     encoding: str = "utf-8"
     newline: str = ""
+    # If True: only write `{stem}_多单.csv` and `{stem}_空单.csv` (no main combined file).
+    split_only: bool = False
 
 
 @dataclass(frozen=True)

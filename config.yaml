@@ -88,4 +88,6 @@ output:
   csv_path: "期货数据_{当前日期}.csv"
   encoding: "utf-8"
   newline: ""
+  # 仅生成多单/空单两份 CSV，不生成合并主文件；飞书推送两份
+  split_only: true
 
