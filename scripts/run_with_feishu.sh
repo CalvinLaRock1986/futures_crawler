@@ -26,20 +26,25 @@ fi
 
 CONFIG="${CONFIG:-config.prod.yaml}"
 
-if [[ -x "$ROOT/.venv/bin/python" ]]; then
+if [[ -x "/opt/anaconda3/envs/future/bin/python" ]]; then
+  PYTHON="${PYTHON:-/opt/anaconda3/envs/future/bin/python}"
+elif [[ -x "$ROOT/.venv/bin/python" ]]; then
   PYTHON="${PYTHON:-$ROOT/.venv/bin/python}"
 else
   PYTHON="${PYTHON:-python3}"
 fi
 
-EXTRA=()
 if [[ "${VERBOSE:-0}" == "1" ]]; then
-  EXTRA+=(--verbose)
+  exec "$PYTHON" -m futures_crawler.cli run \
+    --config "$CONFIG" \
+    --feishu-app-id "$FEISHU_APP_ID" \
+    --feishu-app-secret "$FEISHU_APP_SECRET" \
+    --feishu-chat-id "$FEISHU_CHAT_ID" \
+    --verbose
+else
+  exec "$PYTHON" -m futures_crawler.cli run \
+    --config "$CONFIG" \
+    --feishu-app-id "$FEISHU_APP_ID" \
+    --feishu-app-secret "$FEISHU_APP_SECRET" \
+    --feishu-chat-id "$FEISHU_CHAT_ID"
 fi
-
-exec "$PYTHON" -m futures_crawler.cli run \
-  --config "$CONFIG" \
-  --feishu-app-id "$FEISHU_APP_ID" \
-  --feishu-app-secret "$FEISHU_APP_SECRET" \
-  --feishu-chat-id "$FEISHU_CHAT_ID" \
-  "${EXTRA[@]}"
