@@ -4,17 +4,20 @@ import csv
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from typing import Any
 from unittest.mock import patch
 
 from futures_crawler.crawler import CrawlerEngine
+from futures_crawler.storage import read_combined_report_sections
 from futures_crawler.models import (
+    AuthConfig,
+    ClosePriceConfig,
     CrawlerConfig,
     DetailConfig,
     EndpointConfig,
     FieldMapping,
     HttpConfig,
-    AuthConfig,
     OutputConfig,
     PaginationConfig,
 )
@@ -92,6 +95,71 @@ class CrawlerEngineTests(unittest.TestCase):
             got_ids = [int(r["id"]) for r in rows]
             self.assertEqual(got_ids, [1, 2, 3])
             self.assertEqual([r["title"] for r in rows], ["t1", "t2", "t3"])
+
+    def test_close_price_enrichment(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            out_csv = os.path.join(td, "out.csv")
+            cfg = self._make_cfg(out_csv)
+            cfg = replace(
+                cfg,
+                output=replace(cfg.output, split_only=True),
+                close_price=ClosePriceConfig(
+                    enabled=True,
+                    url="https://example.test/api/warehouse/basic",
+                    headers={},
+                ),
+                fields=[
+                    FieldMapping(name="交易日期", source="list", path="tradeDate", default=""),
+                    FieldMapping(name="合约", source="list", path="contract", default=""),
+                    FieldMapping(name="品种", source="list", path="variety", default=""),
+                    FieldMapping(name="会员简称", source="list", path="company", default=""),
+                    FieldMapping(name="多单持仓", source="list", path="longPos", default=""),
+                    FieldMapping(name="多单增减", source="list", path="longChg", default=""),
+                    FieldMapping(name="多单持仓均价", source="detail", path="data.longAvg", default=""),
+                    FieldMapping(name="空单持仓", source="list", path="shortPos", default=""),
+                    FieldMapping(name="空单增减", source="list", path="shortChg", default=""),
+                    FieldMapping(name="空单持仓均价", source="detail", path="data.shortAvg", default=""),
+                ],
+            )
+
+            def fake_request_json(*, method: str, url: str, params: Any = None, headers: Any = None, json_body: Any = None, timeout_seconds: Any = None) -> Any:
+                if url.endswith("/api/items"):
+                    return {
+                        "data": {
+                            "items": [
+                                {
+                                    "tradeDate": "2026-06-22",
+                                    "contract": "P2609",
+                                    "variety": "P",
+                                    "company": "A",
+                                    "longPos": "100",
+                                    "longChg": "1",
+                                    "shortPos": "0",
+                                    "shortChg": "0",
+                                }
+                            ],
+                            "next_page": None,
+                        }
+                    }
+                if url.endswith("/api/item_detail"):
+                    return {"data": {"longAvg": "9000", "shortAvg": "0"}}
+                if url.endswith("/api/warehouse/basic"):
+                    self.assertEqual(params["hycode"], "p2609")
+                    return {"data": {"trend": [{"date": "2026-06-22", "close": 9366}]}}
+                raise AssertionError(f"Unexpected request: {method} {url} {params}")
+
+            with patch("futures_crawler.crawler.HttpClient") as http_cls:
+                http_instance = http_cls.return_value
+                http_instance.request_json.side_effect = fake_request_json
+
+                engine = CrawlerEngine(cfg)
+                report_csv = engine.run(workers=2)
+
+            long_rows, embedded_short_rows, _ = read_combined_report_sections(report_csv)
+            self.assertEqual(long_rows[0]["收盘价"], "9366")
+            self.assertEqual(long_rows[0]["会员简称"], "A")
+            self.assertEqual(long_rows[0]["名次"], "1")
+            self.assertEqual(embedded_short_rows, [])
 
     def test_missing_detail_field_uses_default(self) -> None:
         with tempfile.TemporaryDirectory() as td:

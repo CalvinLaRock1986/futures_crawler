@@ -7,6 +7,7 @@ from typing import Any, Tuple
 
 from .models import (
     AuthConfig,
+    ClosePriceConfig,
     CrawlerConfig,
     DetailConfig,
     EndpointConfig,
@@ -99,6 +100,17 @@ def load_config(path: str) -> CrawlerConfig:
         detail_records_path=detail_data.get("detail_records_path", ""),
     )
 
+    close_price_data = data.get("close_price", {}) or {}
+    close_price = ClosePriceConfig(
+        enabled=bool(close_price_data.get("enabled", False)),
+        method=close_price_data.get("method", "GET"),
+        url=close_price_data.get("url", ""),
+        headers=close_price_data.get("headers", {}) or {},
+        param_name=close_price_data.get("param_name", "hycode"),
+        trend_path=close_price_data.get("trend_path", "data.trend"),
+        close_key=close_price_data.get("close_key", "close"),
+    )
+
     fields_raw = _require_key(data, "fields")
     if not isinstance(fields_raw, list):
         raise ValueError("`fields` must be a list.")
@@ -127,6 +139,7 @@ def load_config(path: str) -> CrawlerConfig:
         list_endpoint=list_endpoint,
         pagination=pagination_cfg,
         detail=detail,
+        close_price=close_price,
         fields=fields,
         output=output,
     )

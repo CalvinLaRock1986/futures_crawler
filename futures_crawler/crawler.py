@@ -30,7 +30,7 @@ class CrawlerEngine:
         """
         Run full crawl for configured pagination.
 
-        Returns the main CSV path, or (long_csv_path, short_csv_path) when output.split_only is True.
+        Returns the main CSV path, or the combined report path when output.split_only is True.
         """
         logger.info("Crawler start: %s", config_to_dict(self.cfg))
         page = int(self.cfg.pagination.start_page)
@@ -107,6 +107,8 @@ class CrawlerEngine:
                 raise ValueError(f"Unsupported pagination strategy: {self.cfg.pagination.strategy}")
 
         fieldnames = [f.name for f in self.cfg.fields]
+        if self.cfg.close_price.enabled:
+            self._enrich_close_prices(all_rows, workers=workers)
         if self.cfg.output.split_only:
             return write_futures_split_rows(output=self.cfg.output, rows=all_rows)
         return write_csv_overwrite(
@@ -215,4 +217,48 @@ class CrawlerEngine:
         if not valid:
             return None
         return max(valid, key=key_fn)
+
+    def _enrich_close_prices(self, rows: list[dict[str, str]], *, workers: int) -> None:
+        close_cfg = self.cfg.close_price
+        if not close_cfg.enabled or not close_cfg.url:
+            return
+
+        contracts = sorted({str(r.get("合约", "")).strip() for r in rows if str(r.get("合约", "")).strip()})
+        if not contracts:
+            return
+
+        close_by_contract: dict[str, str] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(workers))) as ex:
+            futures = {ex.submit(self._fetch_close_price, contract): contract for contract in contracts}
+            for fut in concurrent.futures.as_completed(futures):
+                contract = futures[fut]
+                close_by_contract[contract] = fut.result()
+
+        for row in rows:
+            contract = str(row.get("合约", "")).strip()
+            row["收盘价"] = close_by_contract.get(contract, "")
+
+    def _fetch_close_price(self, contract: str) -> str:
+        close_cfg = self.cfg.close_price
+        hycode = contract.strip().lower()
+        headers = dict(self.cfg.list_endpoint.headers)
+        headers.update(close_cfg.headers)
+        payload = self.http.request_json(
+            method=close_cfg.method,
+            url=close_cfg.url,
+            params={close_cfg.param_name: hycode},
+            headers=headers,
+        )
+        trend = get_by_path(payload, close_cfg.trend_path)
+        if not isinstance(trend, list) or not trend:
+            logger.warning("Close price trend missing for contract=%s path=%s", contract, close_cfg.trend_path)
+            return ""
+
+        first = trend[0]
+        if not isinstance(first, dict):
+            return ""
+        close_val = first.get(close_cfg.close_key)
+        if close_val is None:
+            return ""
+        return str(close_val)
 

@@ -31,10 +31,12 @@ def _setup_logging(verbose: bool) -> None:
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
-def _resolve_output_path(path: str) -> str:
+def _resolve_output_path(path: str, *, contract: str = "") -> str:
     current_date = datetime.now().strftime("%Y-%m-%d")
-    # Support both Chinese and English placeholders.
-    return path.replace("{当前日期}", current_date).replace("{current_date}", current_date)
+    resolved = path.replace("{当前日期}", current_date).replace("{current_date}", current_date)
+    if contract:
+        resolved = resolved.replace("{合约}", contract).replace("{contract}", contract)
+    return resolved
 
 
 def _is_cn_workday(d: date) -> bool:
@@ -53,25 +55,29 @@ def _run_and_optional_push(args: argparse.Namespace) -> str:
     if args.output:
         # CrawlerConfig is immutable, so we create a new config with replaced OutputConfig.
         cfg = replace(cfg, output=replace(cfg.output, csv_path=args.output))
-    cfg = replace(cfg, output=replace(cfg.output, csv_path=_resolve_output_path(cfg.output.csv_path)))
+    contract = str(cfg.list_endpoint.params_template.get("contract", "") or "")
+    cfg = replace(
+        cfg,
+        output=replace(cfg.output, csv_path=_resolve_output_path(cfg.output.csv_path, contract=contract)),
+    )
     engine = CrawlerEngine(cfg)
     run_result = engine.run(max_pages=args.max_pages, max_records=args.max_records, workers=args.workers)
     log = logging.getLogger("futures_crawler")
 
-    if isinstance(run_result, tuple):
-        long_csv, short_csv = run_result
-        log.info("Wrote split CSVs only: long=%s short=%s", long_csv, short_csv)
-        push_paths = [long_csv, short_csv]
-        out_summary = f"{long_csv}\n{short_csv}"
+    if cfg.output.split_only:
+        out_path = run_result
+        log.info("Wrote report CSV: %s", out_path)
+        push_paths = [out_path]
+        out_summary = out_path
     else:
         out_path = run_result
-        long_csv, short_csv = split_futures_report_csv(
+        report_path = split_futures_report_csv(
             out_path,
             encoding=cfg.output.encoding,
             newline=cfg.output.newline,
         )
-        log.info("Split CSV: long=%s short=%s", long_csv, short_csv)
-        push_paths = [out_path]
+        log.info("Wrote main CSV: %s report=%s", out_path, report_path)
+        push_paths = [out_path, report_path]
         out_summary = out_path
 
     app_id = args.feishu_app_id or os.environ.get("FEISHU_APP_ID")

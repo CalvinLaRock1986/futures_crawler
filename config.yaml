@@ -17,7 +17,7 @@ list_endpoint:
   headers:
     Referer: "https://fupage.10jqka.com.cn/"
   params_template:
-    contract: "P2609"
+    contract: "P2701"
     variety: "P"
 
 pagination:
@@ -84,10 +84,20 @@ fields:
     path: "latestPositionAvgPrice.shortAvg"
     default: ""
 
+close_price:
+  enabled: true
+  method: "GET"
+  url: "https://fupage.10jqka.com.cn/futgwapi/api/market/v1/warehouse/basic"
+  headers:
+    Referer: "https://fupage.10jqka.com.cn/projects/m/inventory/index.html"
+  param_name: "hycode"
+  trend_path: "data.trend"
+  close_key: "close"
+
 output:
-  csv_path: "期货数据_{当前日期}.csv"
+  csv_path: "棕榈{合约}_{当前日期}.csv"
   encoding: "utf-8"
   newline: ""
-  # 仅生成多单/空单两份 CSV，不生成合并主文件；飞书推送两份
+  # 仅生成一份合并报告 CSV（多单+空单）；飞书推送该文件
   split_only: true
 

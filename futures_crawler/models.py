@@ -49,6 +49,17 @@ class PaginationConfig:
 
 
 @dataclass(frozen=True)
+class ClosePriceConfig:
+    enabled: bool = False
+    method: str = "GET"
+    url: str = ""
+    headers: dict[str, str] = field(default_factory=dict)
+    param_name: str = "hycode"
+    trend_path: str = "data.trend"
+    close_key: str = "close"
+
+
+@dataclass(frozen=True)
 class DetailConfig:
     enabled: bool = True
     method: str = "GET"
@@ -77,7 +88,7 @@ class OutputConfig:
     csv_path: str
     encoding: str = "utf-8"
     newline: str = ""
-    # If True: only write `{stem}_多单.csv` and `{stem}_空单.csv` (no main combined file).
+    # If True: only write combined report CSV (no main merged file).
     split_only: bool = False
 
 
@@ -88,6 +99,7 @@ class CrawlerConfig:
     list_endpoint: EndpointConfig
     pagination: PaginationConfig
     detail: DetailConfig
-    fields: list[FieldMapping]
-    output: OutputConfig
+    close_price: ClosePriceConfig = field(default_factory=ClosePriceConfig)
+    fields: list[FieldMapping] = field(default_factory=list)
+    output: OutputConfig = field(default_factory=lambda: OutputConfig(csv_path="output.csv"))
 
