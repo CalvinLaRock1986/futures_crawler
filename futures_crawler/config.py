@@ -13,9 +13,14 @@ from .models import (
     EndpointConfig,
     FieldMapping,
     HttpConfig,
+    JobConfig,
     OutputConfig,
     PaginationConfig,
 )
+
+
+def _mapping_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _require_key(d: dict[str, Any], key: str) -> Any:
@@ -69,7 +74,7 @@ def load_config(path: str) -> CrawlerConfig:
         method=list_ep["method"],
         url=list_ep["url"],
         headers=list_ep.get("headers", {}) or {},
-        params_template=list_ep.get("params_template", {}) or {},
+        params_template=_mapping_or_empty(list_ep.get("params_template")),
         json_template=list_ep.get("json_template"),
     )
 
@@ -133,6 +138,24 @@ def load_config(path: str) -> CrawlerConfig:
         split_only=bool(output_data.get("split_only", False)),
     )
 
+    jobs_raw = data.get("jobs") or []
+    if jobs_raw and not isinstance(jobs_raw, list):
+        raise ValueError("`jobs` must be a list.")
+    jobs: list[JobConfig] = []
+    for item in jobs_raw:
+        if not isinstance(item, dict):
+            raise ValueError("Each `jobs` item must be a mapping.")
+        contract = str(item.get("contract") or "").strip()
+        if not contract:
+            raise ValueError("Each `jobs` item requires `contract`.")
+        jobs.append(
+            JobConfig(
+                contract=contract,
+                variety=str(item.get("variety") or "").strip(),
+                csv_path=str(item.get("csv_path") or "").strip(),
+            )
+        )
+
     return CrawlerConfig(
         auth=auth,
         http=http,
@@ -142,6 +165,7 @@ def load_config(path: str) -> CrawlerConfig:
         close_price=close_price,
         fields=fields,
         output=output,
+        jobs=jobs,
     )
 
 

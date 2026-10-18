@@ -93,6 +93,13 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class JobConfig:
+    contract: str
+    variety: str = ""
+    csv_path: str = ""
+
+
+@dataclass(frozen=True)
 class CrawlerConfig:
     auth: AuthConfig
     http: HttpConfig
@@ -102,4 +109,5 @@ class CrawlerConfig:
     close_price: ClosePriceConfig = field(default_factory=ClosePriceConfig)
     fields: list[FieldMapping] = field(default_factory=list)
     output: OutputConfig = field(default_factory=lambda: OutputConfig(csv_path="output.csv"))
+    jobs: list[JobConfig] = field(default_factory=list)
 

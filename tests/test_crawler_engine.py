@@ -8,7 +8,9 @@ from dataclasses import replace
 from typing import Any
 from unittest.mock import patch
 
+from futures_crawler.cli import _config_for_job, _jobs_from_config
 from futures_crawler.crawler import CrawlerEngine
+from futures_crawler.models import JobConfig
 from futures_crawler.storage import read_combined_report_sections
 from futures_crawler.models import (
     AuthConfig,
@@ -185,6 +187,27 @@ class CrawlerEngineTests(unittest.TestCase):
 
             self.assertEqual(rows[0]["id"], "1")
             self.assertEqual(rows[0]["title"], "")
+
+    def test_jobs_override_contract_and_output_path(self) -> None:
+        cfg = self._make_cfg("out.csv")
+        cfg = replace(
+            cfg,
+            list_endpoint=replace(cfg.list_endpoint, params_template={"contract": "P2701", "variety": "P"}),
+            jobs=[
+                JobConfig(contract="P2701", variety="P", csv_path="棕榈{合约}_{当前日期}.csv"),
+                JobConfig(contract="Y2701", variety="Y", csv_path="豆油{合约}_{当前日期}.csv"),
+            ],
+        )
+        jobs = _jobs_from_config(cfg)
+        self.assertEqual(len(jobs), 2)
+        first = _config_for_job(cfg, jobs[0])
+        second = _config_for_job(cfg, jobs[1])
+        self.assertEqual(first.list_endpoint.params_template["contract"], "P2701")
+        self.assertEqual(first.list_endpoint.params_template["variety"], "P")
+        self.assertTrue(first.output.csv_path.startswith("棕榈P2701_"))
+        self.assertEqual(second.list_endpoint.params_template["contract"], "Y2701")
+        self.assertEqual(second.list_endpoint.params_template["variety"], "Y")
+        self.assertTrue(second.output.csv_path.startswith("豆油Y2701_"))
 
 
 if __name__ == "__main__":

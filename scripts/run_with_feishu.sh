@@ -24,7 +24,7 @@ fi
 : "${FEISHU_APP_SECRET:?missing FEISHU_APP_SECRET}"
 : "${FEISHU_CHAT_ID:?missing FEISHU_CHAT_ID}"
 
-CONFIG="${CONFIG:-config.prod.yaml}"
+CONFIG="${CONFIG:-config.yaml}"
 
 if [[ -x "/opt/anaconda3/envs/future/bin/python" ]]; then
   PYTHON="${PYTHON:-/opt/anaconda3/envs/future/bin/python}"

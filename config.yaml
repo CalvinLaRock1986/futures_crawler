@@ -17,8 +17,6 @@ list_endpoint:
   headers:
     Referer: "https://fupage.10jqka.com.cn/"
   params_template:
-    contract: "P2701"
-    variety: "P"
 
 pagination:
   strategy: "none"
@@ -95,9 +93,17 @@ close_price:
   close_key: "close"
 
 output:
-  csv_path: "棕榈{合约}_{当前日期}.csv"
   encoding: "utf-8"
   newline: ""
   # 仅生成一份合并报告 CSV（多单+空单）；飞书推送该文件
   split_only: true
+
+# 程序会按顺序循环跑每一项：接口共用上面配置，仅合约/品种/文件名不同。
+jobs:
+  - contract: "P2701"
+    variety: "P"
+    csv_path: "棕榈{合约}_{当前日期}.csv"
+  - contract: "P2705"
+    variety: "P"
+    csv_path: "棕榈{合约}_{当前日期}.csv"
 

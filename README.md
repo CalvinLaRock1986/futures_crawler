@@ -2,6 +2,8 @@
 
 Config-driven API crawler framework (Python, stdlib-only).
 
+GitHub 上传、更新、部署命令见 [docs/GITHUB.md](docs/GITHUB.md)。
+
 ## Quick start
 
 1. Edit `config.yaml` with your API endpoints and JSON paths.

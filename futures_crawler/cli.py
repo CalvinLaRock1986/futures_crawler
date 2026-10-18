@@ -19,6 +19,7 @@ from .models import (
     EndpointConfig,
     FieldMapping,
     HttpConfig,
+    JobConfig,
     OutputConfig,
     PaginationConfig,
 )
@@ -50,16 +51,35 @@ def _is_cn_workday(d: date) -> bool:
     return bool(is_workday(d))
 
 
-def _run_and_optional_push(args: argparse.Namespace) -> str:
-    cfg = load_config(args.config)
-    if args.output:
-        # CrawlerConfig is immutable, so we create a new config with replaced OutputConfig.
-        cfg = replace(cfg, output=replace(cfg.output, csv_path=args.output))
-    contract = str(cfg.list_endpoint.params_template.get("contract", "") or "")
-    cfg = replace(
+def _jobs_from_config(cfg: CrawlerConfig) -> list[JobConfig]:
+    if cfg.jobs:
+        return list(cfg.jobs)
+    params = cfg.list_endpoint.params_template or {}
+    return [
+        JobConfig(
+            contract=str(params.get("contract") or ""),
+            variety=str(params.get("variety") or ""),
+            csv_path=cfg.output.csv_path,
+        )
+    ]
+
+
+def _config_for_job(cfg: CrawlerConfig, job: JobConfig, *, output_override: Optional[str] = None) -> CrawlerConfig:
+    raw_params = cfg.list_endpoint.params_template
+    params = dict(raw_params) if isinstance(raw_params, dict) else {}
+    params["contract"] = job.contract
+    if job.variety:
+        params["variety"] = job.variety
+    csv_path = output_override or job.csv_path or cfg.output.csv_path
+    csv_path = _resolve_output_path(csv_path, contract=job.contract)
+    return replace(
         cfg,
-        output=replace(cfg.output, csv_path=_resolve_output_path(cfg.output.csv_path, contract=contract)),
+        list_endpoint=replace(cfg.list_endpoint, params_template=params),
+        output=replace(cfg.output, csv_path=csv_path),
     )
+
+
+def _run_one_job(cfg: CrawlerConfig, args: argparse.Namespace) -> list[str]:
     engine = CrawlerEngine(cfg)
     run_result = engine.run(max_pages=args.max_pages, max_records=args.max_records, workers=args.workers)
     log = logging.getLogger("futures_crawler")
@@ -67,26 +87,36 @@ def _run_and_optional_push(args: argparse.Namespace) -> str:
     if cfg.output.split_only:
         out_path = run_result
         log.info("Wrote report CSV: %s", out_path)
-        push_paths = [out_path]
-        out_summary = out_path
-    else:
-        out_path = run_result
-        report_path = split_futures_report_csv(
-            out_path,
-            encoding=cfg.output.encoding,
-            newline=cfg.output.newline,
-        )
-        log.info("Wrote main CSV: %s report=%s", out_path, report_path)
-        push_paths = [out_path, report_path]
-        out_summary = out_path
+        return [out_path]
+
+    out_path = run_result
+    report_path = split_futures_report_csv(
+        out_path,
+        encoding=cfg.output.encoding,
+        newline=cfg.output.newline,
+    )
+    log.info("Wrote main CSV: %s report=%s", out_path, report_path)
+    return [out_path, report_path]
+
+
+def _run_and_optional_push(args: argparse.Namespace) -> str:
+    cfg = load_config(args.config)
+    jobs = _jobs_from_config(cfg)
+    log = logging.getLogger("futures_crawler")
+    all_paths: list[str] = []
+
+    for job in jobs:
+        log.info("Job start: contract=%s variety=%s", job.contract, job.variety)
+        job_cfg = _config_for_job(cfg, job, output_override=args.output)
+        all_paths.extend(_run_one_job(job_cfg, args))
 
     app_id = args.feishu_app_id or os.environ.get("FEISHU_APP_ID")
     app_secret = args.feishu_app_secret or os.environ.get("FEISHU_APP_SECRET")
     chat_id = args.feishu_chat_id or os.environ.get("FEISHU_CHAT_ID")
     if app_id and app_secret and chat_id:
-        for p in push_paths:
+        for p in all_paths:
             send_file_to_chat(app_id=app_id, app_secret=app_secret, chat_id=chat_id, file_path=p)
-    return out_summary
+    return "\n".join(all_paths)
 
 
 def main(argv: Optional[list[str]] = None) -> None:
